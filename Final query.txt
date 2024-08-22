@@ -1,0 +1,88 @@
+1.Using Window functions, explore the top 3, 5 or 10 customers based on certain metrics (Eg - Find the top 5 customers with highest bank balance who have not defaulted on a loan in the last 2 years). This will help you understand your ideal loan applicants.
+
+WITH RecentNonDefaulters AS (
+    SELECT 
+        LoanNr_ChkDgt,
+        Name,
+        City,
+        State,
+        DisbursementGross,
+        ROW_NUMBER() OVER (ORDER BY DisbursementGross DESC) AS rank
+    FROM 
+        loan
+    WHERE 
+        MIS_Status = 'P I F' -- Assuming 'P I F' indicates loans that were paid in full (no default)
+        AND (ChgOffDate IS NULL OR ChgOffDate <= CURRENT_DATE - INTERVAL '2 years')
+)
+SELECT 
+    LoanNr_ChkDgt,
+    Name,
+    City,
+    State,
+    DisbursementGross
+FROM 
+    RecentNonDefaulters
+WHERE 
+    rank <= 5;
+	
+op-->
+
+	loannr_chkdgt |              name              |    city     | state | disbursementgross
+---------------+--------------------------------+-------------+-------+-------------------
+ 3519465000    | International Golden Foods, In | BENSENVILLE | IL    | $999,999.00
+ 3621943006    | AMERICAN WASTE SYSTEMS INC     | GARDENA     | CA    | $999,995.00
+ 7963624009    | MCCOY SECURITY, INC.           | CHICAGO     | IL    | $999,975.00
+ 3642376010    | WHITCRAFT ENTERPRISES, INC.    | FORT WAYNE  | IN    | $999,970.00
+ 1248154003    | EXOTIC ANIMAL PARADISE         | STRAFFORD   | MO    | $999,961.00
+(5 rows)
+	
+	
+	
+2.Write out your final query that creates a column in the table (Refer to the commands in C3) which says whether a customer is eligible for a loan or not based on the criterion you set in the previous component.	
+
+ALTER TABLE loan
+ALTER COLUMN LoanEligibility TYPE VARCHAR(12);
+
+
+WITH RecentNonDefaulters AS (
+    SELECT 
+        LoanNr_ChkDgt,
+        Name,
+        City,
+        State,
+        DisbursementGross,
+        ROW_NUMBER() OVER (ORDER BY DisbursementGross DESC) AS rank
+    FROM 
+        loan
+    WHERE 
+        MIS_Status = 'P I F'  -- Assuming 'P I F' indicates loans that were paid in full (no default)
+        AND (ChgOffDate IS NULL OR ChgOffDate <= CURRENT_DATE - INTERVAL '2 years')
+)
+UPDATE loan
+SET LoanEligibility = CASE
+    WHEN LoanNr_ChkDgt IN (
+        SELECT LoanNr_ChkDgt 
+        FROM RecentNonDefaulters 
+        WHERE rank <= 5
+    ) THEN 'Eligible'
+    ELSE 'Not Eligible'
+END;	
+	
+	
+3.To check which customers are eligible to get loan approval
+
+SELECT LoanNr_ChkDgt, LoanEligibility FROM loan;
+SELECT LoanNr_ChkDgt, LoanEligibility FROM loan where  LoanEligibility='Eligible';	
+SELECT LoanNr_ChkDgt, Name, City, State, LoanEligibility 
+FROM loan 
+WHERE LoanEligibility = 'Eligible';
+
+op-->
+ loannr_chkdgt |              name              |    city     | state | loaneligibility
+---------------+--------------------------------+-------------+-------+-----------------
+ 1248154003    | EXOTIC ANIMAL PARADISE         | STRAFFORD   | MO    | Eligible
+ 7963624009    | MCCOY SECURITY, INC.           | CHICAGO     | IL    | Eligible
+ 3519465000    | International Golden Foods, In | BENSENVILLE | IL    | Eligible
+ 3621943006    | AMERICAN WASTE SYSTEMS INC     | GARDENA     | CA    | Eligible
+ 3642376010    | WHITCRAFT ENTERPRISES, INC.    | FORT WAYNE  | IN    | Eligible
+(5 rows)
